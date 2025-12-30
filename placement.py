@@ -43,6 +43,7 @@ from enum import IntEnum
 
 import torch
 import torch.optim as optim
+import numpy as np
 
 
 # Feature index enums for cleaner code access
@@ -354,10 +355,28 @@ def overlap_repulsion_loss(cell_features, pin_features, edge_list):
     # 2. Compute pairwise overlaps using vectorized operations
     # 3. Return a scalar loss that is zero when no overlaps exist
     #
-    # Delete this placeholder and add your implementation:
 
-    # Placeholder - returns a constant loss (REPLACE THIS!)
-    return torch.tensor(1.0, requires_grad=True)
+    positions = cell_features[:, 2:4]
+    positions_i = positions.unsqueeze(1)    # [N, 1, 2]
+    positions_j = positions.unsqueeze(0)    # [1, N, 2]
+    distances = positions_i - positions_j   # [N, N, 2]
+    distances = torch.abs(distances)
+
+    dims = cell_features[:, 4:]
+    padding_constant = 0.05
+    dims_i = dims.unsqueeze(1)              # [N, 1, 2]
+    dims_j = dims.unsqueeze(0)              # [1, N, 2]
+    added_dims = (dims_i + dims_j) / 2      # [N, N, 2]
+    added_dims += padding_constant
+
+    overlap = torch.relu(added_dims - distances)
+    overlap_areas = overlap[:,:,0] * overlap[:,:,1]
+    overlap_areas = torch.triu(overlap_areas, diagonal=1)
+
+    total_overlap_area = torch.sum(overlap_areas)
+
+    loss_score = total_overlap_area / N
+    return loss_score
 
 
 def train_placement(
@@ -400,6 +419,7 @@ def train_placement(
 
     # Create optimizer
     optimizer = optim.Adam([cell_positions], lr=lr)
+    # optimizer = optim.SGD([cell_positions], lr=lr)
 
     # Track loss history
     loss_history = {
@@ -425,7 +445,10 @@ def train_placement(
         )
 
         # Combined loss
-        total_loss = lambda_wirelength * wl_loss + lambda_overlap * overlap_loss
+        if epoch % 1000 > 850:
+            total_loss = lambda_wirelength * wl_loss + lambda_overlap * overlap_loss
+        else:
+            total_loss = lambda_wirelength * wl_loss
 
         # Backward pass
         total_loss.backward()
@@ -708,6 +731,8 @@ def plot_placement(
 # ======= MAIN FUNCTION =======
 
 def main():
+    import numpy as np
+
     """Main function demonstrating the placement optimization challenge."""
     print("=" * 70)
     print("VLSI CELL PLACEMENT OPTIMIZATION CHALLENGE")
@@ -731,13 +756,17 @@ def main():
     )
 
     # Initialize positions with random spread to reduce initial overlaps
-    total_cells = cell_features.shape[0]
-    spread_radius = 30.0
-    angles = torch.rand(total_cells) * 2 * 3.14159
-    radii = torch.rand(total_cells) * spread_radius
+    # total_cells = cell_features.shape[0]
+    spread_radius1 = 50.0
+    spread_radius2 = 100.0
+    # angles = torch.rand(total_cells) * 2 * 3.14159
+    # radii = torch.rand(total_cells) * spread_radius1
+    # cell_features[:, 2] = radii * torch.cos(angles)
+    # cell_features[:, 3] = radii * torch.sin(angles)
 
-    cell_features[:, 2] = radii * torch.cos(angles)
-    cell_features[:, 3] = radii * torch.sin(angles)
+    cell_features[(num_macros + 1):, 2:4] = spread_radius1 * (torch.rand(*(cell_features[(num_macros + 1):, 2:4].shape)) - 0.5)
+    cell_features[:(num_macros + 1), 2:4] = spread_radius2 * (torch.rand(*(cell_features[:(num_macros + 1), 2:4].shape)) - 0.5)
+
 
     # Calculate initial metrics
     print("\n" + "=" * 70)
@@ -760,6 +789,10 @@ def main():
         edge_list,
         verbose=True,
         log_interval=200,
+        num_epochs=10000,
+        lr=0.025,
+        lambda_wirelength=1,
+        lambda_overlap=2,
     )
 
     # Calculate final metrics (both detailed and normalized)
@@ -813,4 +846,8 @@ def main():
     )
 
 if __name__ == "__main__":
+    from time import time
+    start = time()
     main()
+    end = time()
+    print(f"Runtime: {end - start}")

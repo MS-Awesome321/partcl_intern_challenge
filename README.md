@@ -31,8 +31,8 @@ We will review submissions on a rolling basis.
 
 | Rank | Name            | Overlap     | Wirelength (um) | Runtime (s) | Notes                |
 |------|-----------------|-------------|-----------------|-------------|----------------------|
-| 1    |   example       | 0.5000      | 0.5             |  10         |   example submission |
-| 2    | Add Yours!      |             |                 |             |                      |
+| 1    | Mayank Sengupta | 0.0000      | 0.335           |  4.26s      |   Used an alternating training schedule (switching between optimizing only wire length and both wire length and overlap)                   |
+| 2    |   example       | 0.5000      | 0.5             |  10         |   example submission |
 
 
 
